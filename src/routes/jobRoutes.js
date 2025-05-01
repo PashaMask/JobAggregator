@@ -10,9 +10,7 @@ router.get('/search', async (req, res) => {
         const filters = {
             category: req.query.category || undefined,
             location: req.query.location || undefined,
-            employmentType: req.query.employmentType || undefined,
-            experienceLevel: req.query.experienceLevel || undefined,
-            source: req.query.source || undefined // Переконаємося, що source передається
+            source: req.query.source || undefined
         };
 
         console.log('Request query in jobRoutes:', req.query);

@@ -82,12 +82,6 @@ async function searchAdzuna(query, start, limit, filters) {
         const adzunaLocation = locationMap[filters.location]?.adzuna || 'gb';
         url = url.replace('jobs/gb', `jobs/${encodeURIComponent(adzunaLocation)}`);
     }
-    if (filters.employmentType) {
-        if (filters.employmentType === 'full_time') url += `&full_time=1`;
-        if (filters.employmentType === 'part_time') url += `&part_time=1`;
-        if (filters.employmentType === 'contract') url += `&contract=1`;
-        if (filters.employmentType === 'temporary') url += `&temporary=1`;
-    }
 
     console.log('Adzuna URL:', url);
 
@@ -113,17 +107,6 @@ async function searchAdzuna(query, start, limit, filters) {
             });
         }
 
-        // Фільтрація за рівнем досвіду (Adzuna не підтримує прямий запит, тому фільтруємо на стороні клієнта)
-        if (filters.experienceLevel) {
-            const experience = parseInt(filters.experienceLevel);
-            jobs = jobs.filter(job => {
-                const level = job.experience_level?.toLowerCase() || 'unknown';
-                if (experience <= 2) return level === 'entry';
-                if (experience <= 5) return level === 'associate';
-                return level === 'mid-senior' || level === 'senior';
-            });
-        }
-
         const mappedJobs = jobs.map(job => ({
             Id: job.id,
             Title: job.title,
@@ -135,8 +118,6 @@ async function searchAdzuna(query, start, limit, filters) {
             DatePosted: job.created,
             Source: 'Adzuna',
             Category: job.category?.label || 'Unknown',
-            EmploymentType: job.contract_type || 'Unknown',
-            ExperienceLevel: job.experience_level || 'Unknown',
         }));
 
         console.log('Adzuna returned jobs:', mappedJobs.length);
@@ -155,18 +136,6 @@ async function searchJSearch(query, start, limit, filters) {
     if (filters.location) {
         const jsearchLocation = locationMap[filters.location]?.jsearch || filters.location;
         url += `&location=${jsearchLocation}`;
-    }
-    if (filters.employmentType) {
-        const jsearchEmploymentType = filters.employmentType.toUpperCase(); // JSearch очікує значення типу "FULLTIME", "PARTTIME", "CONTRACTOR"
-        url += `&employment_types=${jsearchEmploymentType}`;
-    }
-    if (filters.experienceLevel) {
-        let jsearchExperienceLevel;
-        const experience = parseInt(filters.experienceLevel);
-        if (experience <= 2) jsearchExperienceLevel = 'ENTRY_LEVEL';
-        else if (experience <= 5) jsearchExperienceLevel = 'MID_LEVEL';
-        else jsearchExperienceLevel = 'SENIOR_LEVEL';
-        url += `&experience=${jsearchExperienceLevel}`;
     }
 
     console.log('JSearch URL:', url);
@@ -216,8 +185,6 @@ async function searchJSearch(query, start, limit, filters) {
             DatePosted: job.job_posted_at_datetime_utc,
             Source: 'JSearch',
             Category: job.job_category || 'Unknown',
-            EmploymentType: job.job_employment_type || 'Unknown',
-            ExperienceLevel: job.job_required_experience || 'Unknown',
         }));
 
         console.log('JSearch returned jobs:', mappedJobs.length);
@@ -248,7 +215,6 @@ async function searchJobicy(query, start, limit, filters) {
         url += `&search_region=${encodeURIComponent(jobicyRegion)}`;
     }
     if (jobicyCategory) url += `&job_categories=${encodeURIComponent(jobicyCategory)}`;
-    if (filters.employmentType) url += `&job_types=${encodeURIComponent(filters.employmentType.replace('_', '-'))}`;
 
     console.log('Jobicy URL:', url);
 
@@ -278,17 +244,6 @@ async function searchJobicy(query, start, limit, filters) {
             });
         }
 
-        // Фільтрація за рівнем досвіду (Jobicy не підтримує прямий запит, тому фільтруємо на стороні клієнта)
-        if (filters.experienceLevel) {
-            const experience = parseInt(filters.experienceLevel);
-            items = items.filter(item => {
-                const level = item['job:experience']?.[0]?.toLowerCase() || 'unknown';
-                if (experience <= 2) return level === 'entry';
-                if (experience <= 5) return level === 'mid';
-                return level === 'senior';
-            });
-        }
-
         const mappedJobs = items.map(item => ({
             Id: item.guid?.[0] || 'unknown',
             Title: item.title?.[0] || 'No title',
@@ -300,8 +255,6 @@ async function searchJobicy(query, start, limit, filters) {
             DatePosted: item.pubDate?.[0] || 'Unknown',
             Source: 'Jobicy',
             Category: item.category?.[0] || 'Unknown',
-            EmploymentType: item['job:type']?.[0] || 'Unknown',
-            ExperienceLevel: item['job:experience']?.[0] || 'Unknown',
         }));
 
         console.log('Jobicy returned jobs:', mappedJobs.length);
@@ -319,10 +272,6 @@ async function searchArbeitnow(query, start, limit, filters) {
     const page = Math.floor(start / limit) + 1;
     let url = `https://arbeitnow.com/api/job-board-api?page=${page}&per_page=${limit}`;
     if (query) url += `&search=${encodeURIComponent(query)}`;
-    if (filters.employmentType) {
-        const arbeitnowEmploymentType = filters.employmentType.replace('_', ' '); // Arbeitnow очікує значення типу "full time", "part time"
-        url += `&job_types=${encodeURIComponent(arbeitnowEmploymentType)}`;
-    }
 
     console.log('Arbeitnow URL:', url);
 
@@ -353,18 +302,6 @@ async function searchArbeitnow(query, start, limit, filters) {
             });
         }
 
-        // Фільтрація за рівнем досвіду (Arbeitnow не підтримує прямий запит, тому фільтруємо на стороні клієнта)
-        if (filters.experienceLevel) {
-            const experience = parseInt(filters.experienceLevel);
-            jobs = jobs.filter(job => {
-                const level = job.job_types.find(type => ['entry', 'associate', 'mid-senior'].includes(type.toLowerCase()))?.toLowerCase();
-                if (!level) return true;
-                if (experience <= 2) return level === 'entry';
-                if (experience <= 5) return level === 'associate';
-                return level === 'mid-senior';
-            });
-        }
-
         const mappedJobs = jobs.map(job => ({
             Id: job.slug,
             Title: job.title,
@@ -376,8 +313,6 @@ async function searchArbeitnow(query, start, limit, filters) {
             DatePosted: new Date(job.created_at * 1000).toISOString(),
             Source: 'Arbeitnow',
             Category: job.tags[0] || 'Unknown',
-            EmploymentType: job.job_types.find(type => ['full time', 'part time', 'contract', 'internship'].includes(type.toLowerCase())) || 'Unknown',
-            ExperienceLevel: job.job_types.find(type => ['entry', 'associate', 'mid-senior'].includes(type.toLowerCase())) || 'Unknown',
         }));
 
         console.log('Arbeitnow returned jobs:', mappedJobs.length);
@@ -419,19 +354,6 @@ async function searchFindWork(query, start, limit, filters) {
         url += `&location=${encodeURIComponent(findWorkLocation)}`;
     }
 
-    if (filters.employmentType) {
-        url += `&remote=${filters.employmentType === 'remote' ? 'true' : 'false'}`;
-    }
-
-    if (filters.experienceLevel) {
-        let findWorkExperienceLevel;
-        const experience = parseInt(filters.experienceLevel);
-        if (experience <= 2) findWorkExperienceLevel = 'entry';
-        else if (experience <= 5) findWorkExperienceLevel = 'mid';
-        else findWorkExperienceLevel = 'senior';
-        url += `&experience=${findWorkExperienceLevel}`;
-    }
-
     console.log('FindWork URL:', url);
 
     try {
@@ -461,25 +383,6 @@ async function searchFindWork(query, start, limit, filters) {
             });
         }
 
-        // Фільтрація за типом зайнятості (додаткова, якщо API не обробив коректно)
-        if (filters.employmentType && filters.employmentType !== 'remote') {
-            jobs = jobs.filter(job => {
-                const employmentType = job.employment_type?.toLowerCase() || 'unknown';
-                return employmentType.includes(filters.employmentType.toLowerCase());
-            });
-        }
-
-        // Фільтрація за рівнем досвіду (додаткова, якщо API не обробив коректно)
-        if (filters.experienceLevel) {
-            const experience = parseInt(filters.experienceLevel);
-            jobs = jobs.filter(job => {
-                const level = job.experience_level?.toLowerCase() || 'unknown';
-                if (experience <= 2) return level === 'entry';
-                if (experience <= 5) return level === 'mid';
-                return level === 'senior';
-            });
-        }
-
         const mappedJobs = jobs.map(job => ({
             Id: job.id.toString(),
             Title: job.role,
@@ -491,8 +394,6 @@ async function searchFindWork(query, start, limit, filters) {
             DatePosted: job.date_posted,
             Source: 'FindWork',
             Category: job.category || 'Unknown',
-            EmploymentType: job.employment_type || (job.remote ? 'remote' : 'Unknown'),
-            ExperienceLevel: job.experience_level || 'Unknown',
         }));
 
         console.log('FindWork returned jobs:', mappedJobs.length);
@@ -607,8 +508,6 @@ async function getRecommendations(userProfile, start, limit) {
     const filters = {
         category: userProfile.category,
         location: userProfile.location,
-        employmentType: userProfile.employmentType,
-        experienceLevel: userProfile.experienceLevel,
         source: 'All'
     };
     return searchJobs(query, start, limit, filters);
