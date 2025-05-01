@@ -1,0 +1,3 @@
+C:\Users\pauls\source\repos\JobAggregator\JobAggregator\obj\Debug\JobAggregator.njsproj.AssemblyReference.cache
+C:\Users\pauls\source\repos\JobAggregator\JobAggregator\obj\Debug\JobAggregator.njsproj.CoreCompileInputs.cache
+C:\Users\pauls\source\repos\JobAggregator\JobAggregator\bin\Microsoft.NodejsTools.WebRole.dll
