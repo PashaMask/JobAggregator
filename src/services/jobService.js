@@ -82,8 +82,7 @@ async function searchAdzuna(query, start, limit, filters) {
         const adzunaLocation = locationMap[filters.location]?.adzuna || 'gb';
         url = url.replace('jobs/gb', `jobs/${encodeURIComponent(adzunaLocation)}`);
     }
-    if (filters.employmentType === 'full_time') url += `&full_time=1`;
-    if (filters.employmentType === 'part_time') url += `&part_time=1`;
+    if (filters.employmentType) url += `&full_time=${filters.employmentType === 'full_time' ? 1 : 0}&part_time=${filters.employmentType === 'part_time' ? 1 : 0}`;
 
     console.log('Adzuna URL:', url);
 
@@ -99,6 +98,27 @@ async function searchAdzuna(query, start, limit, filters) {
             return { ...job, normalizedLocation: location, normalizedCountry: country };
         });
 
+        // Фільтрація за локацією
+        if (filters.location) {
+            const expectedLocation = locationMap[filters.location]?.fullName?.toLowerCase();
+            jobs = jobs.filter(job => {
+                const location = job.normalizedLocation?.toLowerCase() || '';
+                const country = job.normalizedCountry?.toLowerCase() || '';
+                return country === expectedLocation || location.includes(expectedLocation);
+            });
+        }
+
+        // Фільтрація за рівнем досвіду
+        if (filters.experienceLevel) {
+            const experience = parseInt(filters.experienceLevel);
+            jobs = jobs.filter(job => {
+                const level = job.experience_level?.toLowerCase() || 'unknown';
+                if (experience <= 2) return level === 'entry';
+                if (experience <= 5) return level === 'associate';
+                return level === 'mid-senior' || level === 'senior';
+            });
+        }
+
         const mappedJobs = jobs.map(job => ({
             Id: job.id,
             Title: job.title,
@@ -110,8 +130,8 @@ async function searchAdzuna(query, start, limit, filters) {
             DatePosted: job.created,
             Source: 'Adzuna',
             Category: job.category?.label || 'Unknown',
-            EmploymentType: job.contract_type?.toLowerCase() || 'unknown',
-            ExperienceLevel: job.experience_level?.toLowerCase() || 'unknown',
+            EmploymentType: job.contract_type || 'Unknown',
+            ExperienceLevel: job.experience_level || 'Unknown',
         }));
 
         console.log('Adzuna returned jobs:', mappedJobs.length);
@@ -132,10 +152,7 @@ async function searchJSearch(query, start, limit, filters) {
         url += `&location=${jsearchLocation}`;
     }
     if (filters.employmentType) url += `&employment_type=${filters.employmentType}`;
-    if (filters.experienceLevel) {
-        const jsearchExperienceLevel = filters.experienceLevel === '0' ? 'entry_level' : filters.experienceLevel;
-        url += `&experience_level=${jsearchExperienceLevel}`;
-    }
+    if (filters.experienceLevel) url += `&experience_level=${filters.experienceLevel}`;
 
     console.log('JSearch URL:', url);
 
@@ -157,6 +174,22 @@ async function searchJSearch(query, start, limit, filters) {
             return { ...job, normalizedLocation: location, normalizedCountry: country };
         });
 
+        // Фільтрація за локацією
+        if (filters.location) {
+            const expectedCountryCode = locationMap[filters.location]?.jsearch?.toLowerCase();
+            const expectedCountryName = locationMap[filters.location]?.fullName?.toLowerCase();
+            jobs = jobs.filter(job => {
+                const country = job.normalizedCountry?.toLowerCase() || '';
+                const countryCode = job.job_country?.toLowerCase() || '';
+                return countryCode === expectedCountryCode || country === expectedCountryName;
+            });
+        }
+
+        // Фільтрація за категорією
+        if (filters.category) {
+            jobs = jobs.filter(job => job.job_category?.toLowerCase().includes(filters.category.toLowerCase()));
+        }
+
         const mappedJobs = jobs.map(job => ({
             Id: job.job_id,
             Title: job.job_title,
@@ -168,8 +201,8 @@ async function searchJSearch(query, start, limit, filters) {
             DatePosted: job.job_posted_at_datetime_utc,
             Source: 'JSearch',
             Category: job.job_category || 'Unknown',
-            EmploymentType: job.job_employment_type?.toLowerCase() || 'unknown',
-            ExperienceLevel: job.job_required_experience?.toLowerCase() || 'unknown',
+            EmploymentType: job.job_employment_type || 'Unknown',
+            ExperienceLevel: job.job_required_experience || 'Unknown',
         }));
 
         console.log('JSearch returned jobs:', mappedJobs.length);
@@ -220,6 +253,27 @@ async function searchJobicy(query, start, limit, filters) {
             return { ...item, normalizedLocation: location, normalizedCountry: country };
         });
 
+        // Фільтрація за локацією
+        if (filters.location) {
+            const expectedLocation = locationMap[filters.location]?.fullName?.toLowerCase();
+            items = items.filter(item => {
+                const location = item.normalizedLocation?.toLowerCase() || 'remote';
+                const country = item.normalizedCountry?.toLowerCase() || 'unknown';
+                return country === expectedLocation || location.includes(expectedLocation) || location === 'remote';
+            });
+        }
+
+        // Фільтрація за рівнем досвіду
+        if (filters.experienceLevel) {
+            const experience = parseInt(filters.experienceLevel);
+            items = items.filter(item => {
+                const level = item['job:experience']?.[0]?.toLowerCase() || 'unknown';
+                if (experience <= 2) return level === 'entry';
+                if (experience <= 5) return level === 'mid';
+                return level === 'senior';
+            });
+        }
+
         const mappedJobs = items.map(item => ({
             Id: item.guid?.[0] || 'unknown',
             Title: item.title?.[0] || 'No title',
@@ -231,8 +285,8 @@ async function searchJobicy(query, start, limit, filters) {
             DatePosted: item.pubDate?.[0] || 'Unknown',
             Source: 'Jobicy',
             Category: item.category?.[0] || 'Unknown',
-            EmploymentType: item['job:type']?.[0]?.toLowerCase() || 'unknown',
-            ExperienceLevel: item['job:experience']?.[0]?.toLowerCase() || 'unknown',
+            EmploymentType: item['job:type']?.[0] || 'Unknown',
+            ExperienceLevel: item['job:experience']?.[0] || 'Unknown',
         }));
 
         console.log('Jobicy returned jobs:', mappedJobs.length);
@@ -250,10 +304,6 @@ async function searchArbeitnow(query, start, limit, filters) {
     const page = Math.floor(start / limit) + 1;
     let url = `https://arbeitnow.com/api/job-board-api?page=${page}&per_page=${limit}`;
     if (query) url += `&search=${encodeURIComponent(query)}`;
-    if (filters.location) {
-        const arbeitnowLocation = locationMap[filters.location]?.arbeitnow || filters.location;
-        url += `&location=${encodeURIComponent(arbeitnowLocation)}`;
-    }
 
     console.log('Arbeitnow URL:', url);
 
@@ -269,6 +319,38 @@ async function searchArbeitnow(query, start, limit, filters) {
             return { ...job, normalizedLocation: location, normalizedCountry: country };
         });
 
+        // Фільтрація за категорією
+        if (filters.category) {
+            jobs = jobs.filter(job => job.tags.some(tag => tag.toLowerCase().includes(filters.category.toLowerCase())));
+        }
+
+        // Фільтрація за локацією
+        if (filters.location) {
+            const expectedLocation = locationMap[filters.location]?.arbeitnow?.toLowerCase();
+            jobs = jobs.filter(job => {
+                const location = job.normalizedLocation?.toLowerCase() || '';
+                const country = job.normalizedCountry?.toLowerCase() || '';
+                return country === expectedLocation || location.includes(expectedLocation);
+            });
+        }
+
+        // Фільтрація за типом зайнятості
+        if (filters.employmentType) {
+            jobs = jobs.filter(job => job.job_types.some(type => type.toLowerCase() === filters.employmentType.toLowerCase()));
+        }
+
+        // Фільтрація за рівнем досвіду
+        if (filters.experienceLevel) {
+            const experience = parseInt(filters.experienceLevel);
+            jobs = jobs.filter(job => {
+                const level = job.job_types.find(type => ['entry', 'associate', 'mid-senior'].includes(type.toLowerCase()))?.toLowerCase();
+                if (!level) return true;
+                if (experience <= 2) return level === 'entry';
+                if (experience <= 5) return level === 'associate';
+                return level === 'mid-senior';
+            });
+        }
+
         const mappedJobs = jobs.map(job => ({
             Id: job.slug,
             Title: job.title,
@@ -279,9 +361,9 @@ async function searchArbeitnow(query, start, limit, filters) {
             Salary: 'Not specified',
             DatePosted: new Date(job.created_at * 1000).toISOString(),
             Source: 'Arbeitnow',
-            Category: job.tags?.[0] || 'Unknown',
-            EmploymentType: job.job_types?.join(', ')?.toLowerCase() || 'unknown',
-            ExperienceLevel: job.job_types?.find(type => ['entry', 'associate', 'mid-senior'].includes(type.toLowerCase()))?.toLowerCase() || 'unknown',
+            Category: job.tags[0] || 'Unknown',
+            EmploymentType: job.job_types.find(type => ['full time', 'part time', 'contract', 'internship'].includes(type.toLowerCase())) || 'Unknown',
+            ExperienceLevel: job.job_types.find(type => ['entry', 'associate', 'mid-senior'].includes(type.toLowerCase())) || 'Unknown',
         }));
 
         console.log('Arbeitnow returned jobs:', mappedJobs.length);
@@ -323,6 +405,10 @@ async function searchFindWork(query, start, limit, filters) {
         url += `&location=${encodeURIComponent(findWorkLocation)}`;
     }
 
+    if (filters.employmentType === 'remote') {
+        url += `&employment_type=remote`;
+    }
+
     console.log('FindWork URL:', url);
 
     try {
@@ -342,6 +428,35 @@ async function searchFindWork(query, start, limit, filters) {
             return { ...job, normalizedLocation: location, normalizedCountry: country };
         });
 
+        // Фільтрація за локацією
+        if (filters.location) {
+            const expectedLocation = locationMap[filters.location]?.fullName?.toLowerCase();
+            jobs = jobs.filter(job => {
+                const location = job.normalizedLocation?.toLowerCase() || '';
+                const country = job.normalizedCountry?.toLowerCase() || '';
+                return country === expectedLocation || location.includes(expectedLocation) || (job.remote && location === 'remote');
+            });
+        }
+
+        // Фільтрація за типом зайнятості
+        if (filters.employmentType && filters.employmentType !== 'remote') {
+            jobs = jobs.filter(job => {
+                const employmentType = job.employment_type?.toLowerCase() || 'unknown';
+                return employmentType.includes(filters.employmentType.toLowerCase());
+            });
+        }
+
+        // Фільтрація за рівнем досвіду
+        if (filters.experienceLevel) {
+            const experience = parseInt(filters.experienceLevel);
+            jobs = jobs.filter(job => {
+                const level = job.experience_level?.toLowerCase() || 'unknown';
+                if (experience <= 2) return level === 'entry';
+                if (experience <= 5) return level === 'mid';
+                return level === 'senior';
+            });
+        }
+
         const mappedJobs = jobs.map(job => ({
             Id: job.id.toString(),
             Title: job.role,
@@ -353,8 +468,8 @@ async function searchFindWork(query, start, limit, filters) {
             DatePosted: job.date_posted,
             Source: 'FindWork',
             Category: job.category || 'Unknown',
-            EmploymentType: job.employment_type?.toLowerCase() || (job.remote ? 'remote' : 'unknown'),
-            ExperienceLevel: job.experience_level?.toLowerCase() || 'unknown',
+            EmploymentType: job.employment_type || (job.remote ? 'remote' : 'Unknown'),
+            ExperienceLevel: job.experience_level || 'Unknown',
         }));
 
         console.log('FindWork returned jobs:', mappedJobs.length);
@@ -427,52 +542,40 @@ async function searchJobs(query, start, limit, filters) {
         console.log('Skipping FindWork: not in selected sources');
     }
 
-    // Об'єднання всіх вакансій
-    let allJobs = [
-        ...adzunaJobs,
-        ...jsearchJobs,
-        ...jobicyJobs,
-        ...arbeitnowJobs,
-        ...findWorkJobs
-    ];
+    const jobLists = [
+        { source: 'Adzuna', jobs: adzunaJobs },
+        { source: 'JSearch', jobs: jsearchJobs },
+        { source: 'Jobicy', jobs: jobicyJobs },
+        { source: 'Arbeitnow', jobs: arbeitnowJobs },
+        { source: 'FindWork', jobs: findWorkJobs }
+    ].filter(list => selectedSources.includes(list.source) && list.jobs.length > 0);
 
-    // Клієнтська фільтрація після отримання всіх вакансій
-    if (filters.category) {
-        allJobs = allJobs.filter(job => job.Category?.toLowerCase().includes(filters.category.toLowerCase()));
+    console.log('Job lists after filtering:', jobLists.map(list => ({ source: list.source, jobCount: list.jobs.length })));
+
+    const interleavedJobs = [];
+    let indices = jobLists.map(() => 0);
+    while (interleavedJobs.length < (start + limit)) {
+        let addedThisRound = false;
+        for (let i = 0; i < jobLists.length; i++) {
+            const list = jobLists[i];
+            const index = indices[i];
+            if (index < list.jobs.length) {
+                if (interleavedJobs.length >= start) {
+                    interleavedJobs.push(list.jobs[index]);
+                } else {
+                    interleavedJobs.push(null);
+                }
+                indices[i]++;
+                addedThisRound = true;
+            }
+        }
+        if (!addedThisRound) break;
     }
 
-    if (filters.location) {
-        const expectedLocation = locationMap[filters.location]?.fullName?.toLowerCase();
-        allJobs = allJobs.filter(job => {
-            const location = job.Location?.toLowerCase() || '';
-            const country = job.Country?.toLowerCase() || '';
-            return country === expectedLocation || location.includes(expectedLocation);
-        });
-    }
-
-    if (filters.employmentType) {
-        allJobs = allJobs.filter(job => {
-            const employmentType = job.EmploymentType?.toLowerCase() || 'unknown';
-            return employmentType.includes(filters.employmentType.toLowerCase());
-        });
-    }
-
-    if (filters.experienceLevel) {
-        const expLevel = filters.experienceLevel === '0' ? 'entry_level' : filters.experienceLevel;
-        allJobs = allJobs.filter(job => {
-            const jobLevel = job.ExperienceLevel?.toLowerCase() || 'unknown';
-            return jobLevel === 'unknown' || jobLevel.includes(expLevel.toLowerCase());
-        });
-    }
-
-    console.log('Job lists after filtering:', allJobs.length);
-
-    // Інтерлівація вакансій
-    const interleavedJobs = allJobs.slice(start, start + limit);
-
-    console.log('Final jobs returned:', interleavedJobs.length);
-    console.log('Sources in final jobs:', [...new Set(interleavedJobs.map(job => job.Source))]);
-    return interleavedJobs;
+    const finalJobs = interleavedJobs.filter(job => job != null).slice(0, limit);
+    console.log('Final jobs returned:', finalJobs.length);
+    console.log('Sources in final jobs:', [...new Set(finalJobs.map(job => job.Source))]);
+    return finalJobs;
 }
 
 // Функція для рекомендацій на основі профілю користувача
