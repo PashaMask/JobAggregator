@@ -7,19 +7,24 @@ router.get('/search', async (req, res) => {
         const query = req.query.query || '';
         const start = parseInt(req.query.start) || 0;
         const limit = parseInt(req.query.limit) || 10;
+        const salaryMin = req.query.salaryMin ? parseInt(req.query.salaryMin) : undefined;
+        const salaryMax = req.query.salaryMax ? parseInt(req.query.salaryMax) : undefined;
+
         const filters = {
             category: req.query.category || undefined,
             location: req.query.location || undefined,
-            source: req.query.source || undefined
+            source: req.query.source || undefined,
+            salaryMin,
+            salaryMax
         };
 
-        console.log('Request query in jobRoutes:', req.query);
+        console.log('Request query in jobRoutes /search:', req.query);
         console.log('Filters passed to searchJobs:', filters);
 
         const jobs = await searchJobs(query, start, limit, filters);
         res.json(jobs);
     } catch (error) {
-        console.error('Error in /search:', error);
+        console.error('Error in /search:', error.message);
         res.status(500).json({ error: error.message });
     }
 });
@@ -27,17 +32,24 @@ router.get('/search', async (req, res) => {
 router.post('/recommendations', async (req, res) => {
     try {
         const { userProfile, start = 0, limit = 20, salaryMin, salaryMax } = req.body;
-        const recommendations = await jobService.getRecommendations(userProfile, parseInt(start), parseInt(limit), salaryMin, salaryMax);
-        res.json(recommendations);
-        const start = req.body.start || 0;
-        const limit = req.body.limit || 10;
+
+        // Валідація параметрів
+        if (!userProfile) {
+            return res.status(400).json({ error: 'userProfile is required' });
+        }
 
         console.log('Recommendations request body:', req.body);
 
-        const jobs = await getRecommendations(userProfile, start, limit);
-        res.json(jobs);
+        const recommendations = await getRecommendations(
+            userProfile,
+            parseInt(start),
+            parseInt(limit),
+            salaryMin ? parseInt(salaryMin) : undefined,
+            salaryMax ? parseInt(salaryMax) : undefined
+        );
+        res.json(recommendations);
     } catch (error) {
-        console.error('Error in /recommendations:', error);
+        console.error('Error in /recommendations:', error.message);
         res.status(500).json({ error: error.message });
     }
 });
