@@ -46,7 +46,10 @@ function normalizeLocation(jobLocation, jobCountry) {
         const foundCountry = Object.values(locationMap).find(loc =>
             locationLower.includes(loc.fullName.toLowerCase()) ||
             locationLower.includes(loc.adzuna.toLowerCase()) ||
-            locationLower.includes(loc.jsearch.toLowerCase())
+            locationLower.includes(loc.jsearch.toLowerCase()) ||
+            locationLower.includes(loc.jobicy.toLowerCase()) ||
+            locationLower.includes(loc.arbeitnow.toLowerCase()) ||
+            locationLower.includes(loc.findwork.toLowerCase())
         );
         if (foundCountry) {
             country = foundCountry.fullName;
@@ -118,6 +121,7 @@ async function searchAdzuna(query, start, limit, filters) {
             DatePosted: job.created,
             Source: 'Adzuna',
             Category: job.category?.label || 'Unknown',
+            JobUrl: job.redirect_url || 'Not available'
         }));
 
         console.log('Adzuna returned jobs:', mappedJobs.length);
@@ -135,7 +139,10 @@ async function searchJSearch(query, start, limit, filters) {
     let url = `https://jsearch.p.rapidapi.com/search?query=${encodeURIComponent(query || 'developer')}&page=${Math.floor(start / limit) + 1}&num_pages=1`;
     if (filters.location) {
         const jsearchLocation = locationMap[filters.location]?.jsearch || filters.location;
-        url += `&location=${jsearchLocation}`;
+        url += `&location=${encodeURIComponent(jsearchLocation)}`;
+    }
+    if (filters.category) {
+        url += `&category=${encodeURIComponent(filters.category.toLowerCase())}`;
     }
 
     console.log('JSearch URL:', url);
@@ -171,7 +178,8 @@ async function searchJSearch(query, start, limit, filters) {
 
         // Фільтрація за категорією
         if (filters.category) {
-            jobs = jobs.filter(job => job.job_category?.toLowerCase().includes(filters.category.toLowerCase()));
+            jobs = jobs.filter(job => job.job_employment_type?.toLowerCase().includes(filters.category.toLowerCase()) ||
+                job.job_title?.toLowerCase().includes(filters.category.toLowerCase()));
         }
 
         const mappedJobs = jobs.map(job => ({
@@ -184,7 +192,8 @@ async function searchJSearch(query, start, limit, filters) {
             Salary: job.job_salary ? `$${job.job_salary}` : 'Not specified',
             DatePosted: job.job_posted_at_datetime_utc,
             Source: 'JSearch',
-            Category: job.job_category || 'Unknown',
+            Category: job.job_employment_type || job.job_title || 'Unknown',
+            JobUrl: job.job_apply_link || 'Not available'
         }));
 
         console.log('JSearch returned jobs:', mappedJobs.length);
@@ -237,11 +246,19 @@ async function searchJobicy(query, start, limit, filters) {
         // Фільтрація за локацією
         if (filters.location) {
             const expectedLocation = locationMap[filters.location]?.fullName?.toLowerCase();
+            const expectedJobicyCode = locationMap[filters.location]?.jobicy?.toLowerCase();
             items = items.filter(item => {
                 const location = item.normalizedLocation?.toLowerCase() || 'remote';
                 const country = item.normalizedCountry?.toLowerCase() || 'unknown';
-                return country === expectedLocation || location.includes(expectedLocation) || location === 'remote';
+                return country === expectedLocation || location.includes(expectedLocation) ||
+                    location.includes(expectedJobicyCode) || location === 'remote';
             });
+        }
+
+        // Фільтрація за категорією
+        if (filters.category) {
+            const expectedCategory = categoryMap[filters.category.toLowerCase()];
+            items = items.filter(item => item.category?.[0]?.toLowerCase().includes(expectedCategory));
         }
 
         const mappedJobs = items.map(item => ({
@@ -255,6 +272,7 @@ async function searchJobicy(query, start, limit, filters) {
             DatePosted: item.pubDate?.[0] || 'Unknown',
             Source: 'Jobicy',
             Category: item.category?.[0] || 'Unknown',
+            JobUrl: item.link?.[0] || 'Not available'
         }));
 
         console.log('Jobicy returned jobs:', mappedJobs.length);
@@ -272,6 +290,10 @@ async function searchArbeitnow(query, start, limit, filters) {
     const page = Math.floor(start / limit) + 1;
     let url = `https://arbeitnow.com/api/job-board-api?page=${page}&per_page=${limit}`;
     if (query) url += `&search=${encodeURIComponent(query)}`;
+    if (filters.location) {
+        const arbeitnowLocation = locationMap[filters.location]?.arbeitnow || filters.location;
+        url += `&location=${encodeURIComponent(arbeitnowLocation)}`;
+    }
 
     console.log('Arbeitnow URL:', url);
 
@@ -295,10 +317,11 @@ async function searchArbeitnow(query, start, limit, filters) {
         // Фільтрація за локацією
         if (filters.location) {
             const expectedLocation = locationMap[filters.location]?.arbeitnow?.toLowerCase();
+            const expectedCountryName = locationMap[filters.location]?.fullName?.toLowerCase();
             jobs = jobs.filter(job => {
                 const location = job.normalizedLocation?.toLowerCase() || '';
                 const country = job.normalizedCountry?.toLowerCase() || '';
-                return country === expectedLocation || location.includes(expectedLocation);
+                return country === expectedCountryName || location.includes(expectedLocation);
             });
         }
 
@@ -313,6 +336,7 @@ async function searchArbeitnow(query, start, limit, filters) {
             DatePosted: new Date(job.created_at * 1000).toISOString(),
             Source: 'Arbeitnow',
             Category: job.tags[0] || 'Unknown',
+            JobUrl: job.url || 'Not available'
         }));
 
         console.log('Arbeitnow returned jobs:', mappedJobs.length);
@@ -376,10 +400,11 @@ async function searchFindWork(query, start, limit, filters) {
         // Фільтрація за локацією
         if (filters.location) {
             const expectedLocation = locationMap[filters.location]?.fullName?.toLowerCase();
+            const expectedFindWorkCode = locationMap[filters.location]?.findwork?.toLowerCase();
             jobs = jobs.filter(job => {
                 const location = job.normalizedLocation?.toLowerCase() || '';
                 const country = job.normalizedCountry?.toLowerCase() || '';
-                return country === expectedLocation || location.includes(expectedLocation) || (job.remote && location === 'remote');
+                return country === expectedLocation || location.includes(expectedFindWorkCode) || (job.remote && location === 'remote');
             });
         }
 
@@ -394,6 +419,7 @@ async function searchFindWork(query, start, limit, filters) {
             DatePosted: job.date_posted,
             Source: 'FindWork',
             Category: job.category || 'Unknown',
+            JobUrl: job.url || 'Not available'
         }));
 
         console.log('FindWork returned jobs:', mappedJobs.length);
