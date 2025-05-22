@@ -20,6 +20,9 @@ const locationMap = {
     'at': { fullName: 'Austria', adzuna: 'at', jsearch: 'AT', jobicy: 'austria', arbeitnow: 'Austria', findwork: 'Austria' },
 };
 
+// Простий кеш для запитів
+const cache = new Map();
+
 // Функція для визначення країни за містом із використанням cities.json
 function inferCountryFromCity(location) {
     if (!location) return null;
@@ -59,6 +62,25 @@ function normalizeLocation(jobLocation, jobCountry) {
     return { location, country: country || 'Unknown' };
 }
 
+// Функція для нормалізації зарплати
+function normalizeSalary(salary) {
+    if (!salary || salary === 'Not specified') return { display: 'Not specified', value: 0 };
+
+    // Видаляємо символи валюти та пробіли
+    const cleanedSalary = salary.replace(/[^0-9-]/g, '');
+    if (!cleanedSalary) return { display: salary, value: 0 };
+
+    // Якщо це діапазон (наприклад, "20000-30000")
+    if (cleanedSalary.includes('-')) {
+        const [min, max] = cleanedSalary.split('-').map(val => parseInt(val) || 0);
+        return { display: `$${min} - $${max}`, value: min };
+    }
+
+    // Якщо це одне значення
+    const value = parseInt(cleanedSalary) || 0;
+    return { display: `$${value}`, value };
+}
+
 // Функція для пошуку вакансій через Adzuna
 async function searchAdzuna(query, start, limit, filters) {
     console.log('Calling searchAdzuna with query:', query);
@@ -86,6 +108,12 @@ async function searchAdzuna(query, start, limit, filters) {
         url = url.replace('jobs/gb', `jobs/${encodeURIComponent(adzunaLocation)}`);
     }
 
+    const cacheKey = `adzuna:${url}`;
+    if (cache.has(cacheKey)) {
+        console.log('Returning cached Adzuna jobs');
+        return cache.get(cacheKey);
+    }
+
     console.log('Adzuna URL:', url);
 
     try {
@@ -110,21 +138,26 @@ async function searchAdzuna(query, start, limit, filters) {
             });
         }
 
-        const mappedJobs = jobs.map(job => ({
-            Id: job.id,
-            Title: job.title,
-            Company: job.company.display_name,
-            Location: job.normalizedLocation,
-            Country: job.normalizedCountry,
-            Description: job.description,
-            Salary: job.salary_min ? `$${job.salary_min} - $${job.salary_max}` : 'Not specified',
-            DatePosted: job.created,
-            Source: 'Adzuna',
-            Category: job.category?.label || 'Unknown',
-            JobUrl: job.redirect_url || 'Not available'
-        }));
+        const mappedJobs = jobs.map(job => {
+            const salaryInfo = normalizeSalary(job.salary_min ? `${job.salary_min}-${job.salary_max}` : 'Not specified');
+            return {
+                Id: job.id,
+                Title: job.title,
+                Company: job.company.display_name,
+                Location: job.normalizedLocation,
+                Country: job.normalizedCountry,
+                Description: job.description,
+                Salary: salaryInfo.display,
+                SalaryValue: salaryInfo.value, // Додаємо числове значення для фільтрації
+                DatePosted: job.created,
+                Source: 'Adzuna',
+                Category: job.category?.label || 'Unknown',
+                JobUrl: job.redirect_url || 'Not available'
+            };
+        });
 
         console.log('Adzuna returned jobs:', mappedJobs.length);
+        cache.set(cacheKey, mappedJobs);
         return mappedJobs;
     } catch (error) {
         console.error('Adzuna error:', error.message);
@@ -143,6 +176,12 @@ async function searchJSearch(query, start, limit, filters) {
     }
     if (filters.category) {
         url += `&category=${encodeURIComponent(filters.category.toLowerCase())}`;
+    }
+
+    const cacheKey = `jsearch:${url}`;
+    if (cache.has(cacheKey)) {
+        console.log('Returning cached JSearch jobs');
+        return cache.get(cacheKey);
     }
 
     console.log('JSearch URL:', url);
@@ -182,21 +221,26 @@ async function searchJSearch(query, start, limit, filters) {
                 job.job_title?.toLowerCase().includes(filters.category.toLowerCase()));
         }
 
-        const mappedJobs = jobs.map(job => ({
-            Id: job.job_id,
-            Title: job.job_title,
-            Company: job.employer_name,
-            Location: job.normalizedLocation,
-            Country: job.normalizedCountry,
-            Description: job.job_description,
-            Salary: job.job_salary ? `$${job.job_salary}` : 'Not specified',
-            DatePosted: job.job_posted_at_datetime_utc,
-            Source: 'JSearch',
-            Category: job.job_employment_type || job.job_title || 'Unknown',
-            JobUrl: job.job_apply_link || 'Not available'
-        }));
+        const mappedJobs = jobs.map(job => {
+            const salaryInfo = normalizeSalary(job.job_salary ? `${job.job_salary}` : 'Not specified');
+            return {
+                Id: job.job_id,
+                Title: job.job_title,
+                Company: job.employer_name,
+                Location: job.normalizedLocation,
+                Country: job.normalizedCountry,
+                Description: job.job_description,
+                Salary: salaryInfo.display,
+                SalaryValue: salaryInfo.value,
+                DatePosted: job.job_posted_at_datetime_utc,
+                Source: 'JSearch',
+                Category: job.job_employment_type || job.job_title || 'Unknown',
+                JobUrl: job.job_apply_link || 'Not available'
+            };
+        });
 
         console.log('JSearch returned jobs:', mappedJobs.length);
+        cache.set(cacheKey, mappedJobs);
         return mappedJobs;
     } catch (error) {
         console.error('JSearch error:', error.message);
@@ -224,6 +268,12 @@ async function searchJobicy(query, start, limit, filters) {
         url += `&search_region=${encodeURIComponent(jobicyRegion)}`;
     }
     if (jobicyCategory) url += `&job_categories=${encodeURIComponent(jobicyCategory)}`;
+
+    const cacheKey = `jobicy:${url}`;
+    if (cache.has(cacheKey)) {
+        console.log('Returning cached Jobicy jobs');
+        return cache.get(cacheKey);
+    }
 
     console.log('Jobicy URL:', url);
 
@@ -261,21 +311,26 @@ async function searchJobicy(query, start, limit, filters) {
             items = items.filter(item => item.category?.[0]?.toLowerCase().includes(expectedCategory));
         }
 
-        const mappedJobs = items.map(item => ({
-            Id: item.guid?.[0] || 'unknown',
-            Title: item.title?.[0] || 'No title',
-            Company: item['itunes:author']?.[0] || 'Unknown',
-            Location: item.normalizedLocation,
-            Country: item.normalizedCountry,
-            Description: item.description?.[0] || 'No description',
-            Salary: 'Not specified',
-            DatePosted: item.pubDate?.[0] || 'Unknown',
-            Source: 'Jobicy',
-            Category: item.category?.[0] || 'Unknown',
-            JobUrl: item.link?.[0] || 'Not available'
-        }));
+        const mappedJobs = items.map(item => {
+            const salaryInfo = normalizeSalary('Not specified'); // Jobicy не надає зарплату
+            return {
+                Id: item.guid?.[0] || 'unknown',
+                Title: item.title?.[0] || 'No title',
+                Company: item['itunes:author']?.[0] || 'Unknown',
+                Location: item.normalizedLocation,
+                Country: item.normalizedCountry,
+                Description: item.description?.[0] || 'No description',
+                Salary: salaryInfo.display,
+                SalaryValue: salaryInfo.value,
+                DatePosted: item.pubDate?.[0] || 'Unknown',
+                Source: 'Jobicy',
+                Category: item.category?.[0] || 'Unknown',
+                JobUrl: item.link?.[0] || 'Not available'
+            };
+        });
 
         console.log('Jobicy returned jobs:', mappedJobs.length);
+        cache.set(cacheKey, mappedJobs);
         return mappedJobs;
     } catch (error) {
         console.error('Jobicy error:', error.message);
@@ -293,6 +348,12 @@ async function searchArbeitnow(query, start, limit, filters) {
     if (filters.location) {
         const arbeitnowLocation = locationMap[filters.location]?.arbeitnow || filters.location;
         url += `&location=${encodeURIComponent(arbeitnowLocation)}`;
+    }
+
+    const cacheKey = `arbeitnow:${url}`;
+    if (cache.has(cacheKey)) {
+        console.log('Returning cached Arbeitnow jobs');
+        return cache.get(cacheKey);
     }
 
     console.log('Arbeitnow URL:', url);
@@ -325,21 +386,26 @@ async function searchArbeitnow(query, start, limit, filters) {
             });
         }
 
-        const mappedJobs = jobs.map(job => ({
-            Id: job.slug,
-            Title: job.title,
-            Company: job.company_name,
-            Location: job.normalizedLocation,
-            Country: job.normalizedCountry,
-            Description: job.description,
-            Salary: 'Not specified',
-            DatePosted: new Date(job.created_at * 1000).toISOString(),
-            Source: 'Arbeitnow',
-            Category: job.tags[0] || 'Unknown',
-            JobUrl: job.url || 'Not available'
-        }));
+        const mappedJobs = jobs.map(job => {
+            const salaryInfo = normalizeSalary('Not specified'); // Arbeitnow не надає зарплату
+            return {
+                Id: job.slug,
+                Title: job.title,
+                Company: job.company_name,
+                Location: job.normalizedLocation,
+                Country: job.normalizedCountry,
+                Description: job.description,
+                Salary: salaryInfo.display,
+                SalaryValue: salaryInfo.value,
+                DatePosted: new Date(job.created_at * 1000).toISOString(),
+                Source: 'Arbeitnow',
+                Category: job.tags[0] || 'Unknown',
+                JobUrl: job.url || 'Not available'
+            };
+        });
 
         console.log('Arbeitnow returned jobs:', mappedJobs.length);
+        cache.set(cacheKey, mappedJobs);
         return mappedJobs;
     } catch (error) {
         console.error('Arbeitnow error:', error.message);
@@ -378,6 +444,12 @@ async function searchFindWork(query, start, limit, filters) {
         url += `&location=${encodeURIComponent(findWorkLocation)}`;
     }
 
+    const cacheKey = `findwork:${url}`;
+    if (cache.has(cacheKey)) {
+        console.log('Returning cached FindWork jobs');
+        return cache.get(cacheKey);
+    }
+
     console.log('FindWork URL:', url);
 
     try {
@@ -408,21 +480,26 @@ async function searchFindWork(query, start, limit, filters) {
             });
         }
 
-        const mappedJobs = jobs.map(job => ({
-            Id: job.id.toString(),
-            Title: job.role,
-            Company: job.company_name,
-            Location: job.normalizedLocation,
-            Country: job.normalizedCountry,
-            Description: job.description || 'No description',
-            Salary: job.salary || 'Not specified',
-            DatePosted: job.date_posted,
-            Source: 'FindWork',
-            Category: job.category || 'Unknown',
-            JobUrl: job.url || 'Not available'
-        }));
+        const mappedJobs = jobs.map(job => {
+            const salaryInfo = normalizeSalary(job.salary || 'Not specified');
+            return {
+                Id: job.id.toString(),
+                Title: job.role,
+                Company: job.company_name,
+                Location: job.normalizedLocation,
+                Country: job.normalizedCountry,
+                Description: job.description || 'No description',
+                Salary: salaryInfo.display,
+                SalaryValue: salaryInfo.value,
+                DatePosted: job.date_posted,
+                Source: 'FindWork',
+                Category: job.category || 'Unknown',
+                JobUrl: job.url || 'Not available'
+            };
+        });
 
         console.log('FindWork returned jobs:', mappedJobs.length);
+        cache.set(cacheKey, mappedJobs);
         return mappedJobs;
     } catch (error) {
         console.error('FindWork error:', error.message);
@@ -437,6 +514,8 @@ async function searchJobs(query, start, limit, filters) {
     const sources = filters.source ? filters.source.split(',').map(s => s.trim()) : null;
     const allSources = ['Adzuna', 'JSearch', 'Jobicy', 'Arbeitnow', 'FindWork'];
     const selectedSources = sources && !sources.includes('All') ? sources : allSources;
+
+    const { salaryMin, salaryMax } = filters;
 
     console.log('Sources parsed:', sources);
     console.log('Selected sources:', selectedSources);
@@ -502,7 +581,7 @@ async function searchJobs(query, start, limit, filters) {
 
     console.log('Job lists after filtering:', jobLists.map(list => ({ source: list.source, jobCount: list.jobs.length })));
 
-    const interleavedJobs = [];
+    let interleavedJobs = [];
     let indices = jobLists.map(() => 0);
     while (interleavedJobs.length < (start + limit)) {
         let addedThisRound = false;
@@ -522,21 +601,49 @@ async function searchJobs(query, start, limit, filters) {
         if (!addedThisRound) break;
     }
 
-    const finalJobs = interleavedJobs.filter(job => job != null).slice(0, limit);
+    let finalJobs = interleavedJobs.filter(job => job != null);
+
+    // Фільтрація за зарплатою
+    if (salaryMin || salaryMax) {
+        const min = salaryMin ? parseInt(salaryMin) : 0;
+        const max = salaryMax ? parseInt(salaryMax) : Infinity;
+        finalJobs = finalJobs.filter(job => {
+            const salaryValue = job.SalaryValue || 0;
+            return salaryValue >= min && salaryValue <= max;
+        });
+    }
+
+    finalJobs = finalJobs.slice(0, limit);
     console.log('Final jobs returned:', finalJobs.length);
     console.log('Sources in final jobs:', [...new Set(finalJobs.map(job => job.Source))]);
     return finalJobs;
 }
 
 // Функція для рекомендацій на основі профілю користувача
-async function getRecommendations(userProfile, start, limit) {
+async function getRecommendations(userProfile, start, limit, salaryMin, salaryMax) {
     const query = userProfile.interests?.join(' ') || 'developer';
     const filters = {
         category: userProfile.category,
         location: userProfile.location,
-        source: 'All'
+        source: 'All',
+        salaryMin,
+        salaryMax
     };
-    return searchJobs(query, start, limit, filters);
+    const recommendedJobs = await searchJobs(query, start, limit, filters);
+
+    // Сортуємо вакансії за релевантністю (кількість збігів із інтересами)
+    const interests = userProfile.interests || [];
+    return recommendedJobs.sort((a, b) => {
+        const aMatches = interests.filter(interest =>
+            a.Title.toLowerCase().includes(interest.toLowerCase()) ||
+            a.Description.toLowerCase().includes(interest.toLowerCase())
+        ).length;
+        const bMatches = interests.filter(interest =>
+            b.Title.toLowerCase().includes(interest.toLowerCase()) ||
+            b.Description.toLowerCase().includes(interest.toLowerCase())
+        ).length;
+        return bMatches - aMatches;
+    });
 }
 
 module.exports = { searchJobs, getRecommendations };

@@ -26,7 +26,9 @@ router.get('/search', async (req, res) => {
 
 router.post('/recommendations', async (req, res) => {
     try {
-        const userProfile = req.body.userProfile || {};
+        const { userProfile, start = 0, limit = 20, salaryMin, salaryMax } = req.body;
+        const recommendations = await jobService.getRecommendations(userProfile, parseInt(start), parseInt(limit), salaryMin, salaryMax);
+        res.json(recommendations);
         const start = req.body.start || 0;
         const limit = req.body.limit || 10;
 
