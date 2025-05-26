@@ -107,8 +107,14 @@ async function searchAdzuna(query, start, limit, filters) {
         const adzunaLocation = locationMap[filters.location]?.adzuna || 'gb';
         url = url.replace('jobs/gb', `jobs/${encodeURIComponent(adzunaLocation)}`);
     }
+    // Перевірка параметра remote: Adzuna може не підтримувати прямий параметр, тому додаємо ключове слово "remote" до запиту
     if (filters.remote !== undefined) {
-        url += `&where=remote:${filters.remote ? 1 : 0}`; // Adzuna: remote=1 для віддаленої, 0 для невіддаленої
+        if (filters.remote) {
+            url += `&what=${encodeURIComponent('remote')}`; // Додаємо "remote" до пошуку
+        } else {
+            // Для "On-site Only" можна спробувати виключити "remote", але це залежить від API
+            url += `&what=-${encodeURIComponent('remote')}`; // Виключаємо "remote" із результатів
+        }
     }
 
     const cacheKey = `adzuna:${url}`;
@@ -128,7 +134,10 @@ async function searchAdzuna(query, start, limit, filters) {
         // Нормалізація локацій та визначення isRemote
         jobs = jobs.map(job => {
             const { location, country } = normalizeLocation(job.location?.display_name, job.location?.area?.[0]);
-            const isRemote = job.location?.display_name?.toLowerCase().includes('remote') || filters.remote === true;
+            const isRemote = job.location?.display_name?.toLowerCase().includes('remote') ||
+                job.description?.toLowerCase().includes('remote') ||
+                (filters.remote === true); // Додаємо перевірку description
+            console.log(`Job ${job.id}: Location=${job.location?.display_name}, isRemote=${isRemote}`); // Логування для налагодження
             return { ...job, normalizedLocation: location, normalizedCountry: country, isRemote };
         });
 
@@ -140,6 +149,13 @@ async function searchAdzuna(query, start, limit, filters) {
                 const country = job.normalizedCountry?.toLowerCase() || '';
                 return country === expectedLocation || location.includes(expectedLocation);
             });
+        }
+
+        // Додаткова фільтрація за remote (якщо API не фільтрує коректно)
+        if (filters.remote === true) {
+            jobs = jobs.filter(job => job.isRemote);
+        } else if (filters.remote === false) {
+            jobs = jobs.filter(job => !job.isRemote);
         }
 
         const mappedJobs = jobs.map(job => {
