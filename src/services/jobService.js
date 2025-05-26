@@ -107,6 +107,9 @@ async function searchAdzuna(query, start, limit, filters) {
         const adzunaLocation = locationMap[filters.location]?.adzuna || 'gb';
         url = url.replace('jobs/gb', `jobs/${encodeURIComponent(adzunaLocation)}`);
     }
+    if (filters.remote !== undefined) {
+        url += `&where=remote:${filters.remote ? 1 : 0}`; // Adzuna: remote=1 для віддаленої, 0 для невіддаленої
+    }
 
     const cacheKey = `adzuna:${url}`;
     if (cache.has(cacheKey)) {
@@ -122,10 +125,11 @@ async function searchAdzuna(query, start, limit, filters) {
 
         console.log('Adzuna raw jobs:', jobs.length);
 
-        // Нормалізація локацій
+        // Нормалізація локацій та визначення isRemote
         jobs = jobs.map(job => {
             const { location, country } = normalizeLocation(job.location?.display_name, job.location?.area?.[0]);
-            return { ...job, normalizedLocation: location, normalizedCountry: country };
+            const isRemote = job.location?.display_name?.toLowerCase().includes('remote') || filters.remote === true;
+            return { ...job, normalizedLocation: location, normalizedCountry: country, isRemote };
         });
 
         // Фільтрація за локацією
@@ -148,11 +152,12 @@ async function searchAdzuna(query, start, limit, filters) {
                 Country: job.normalizedCountry,
                 Description: job.description,
                 Salary: salaryInfo.display,
-                SalaryValue: salaryInfo.value, // Додаємо числове значення для фільтрації
+                SalaryValue: salaryInfo.value,
                 DatePosted: job.created,
                 Source: 'Adzuna',
                 Category: job.category?.label || 'Unknown',
-                JobUrl: job.redirect_url || 'Not available'
+                JobUrl: job.redirect_url || 'Not available',
+                isRemote: job.isRemote || false
             };
         });
 
@@ -177,6 +182,9 @@ async function searchJSearch(query, start, limit, filters) {
     if (filters.category) {
         url += `&category=${encodeURIComponent(filters.category.toLowerCase())}`;
     }
+    if (filters.remote !== undefined) {
+        url += `&remote_jobs_only=${filters.remote}`; // JSearch: true для віддаленої, false для невіддаленої
+    }
 
     const cacheKey = `jsearch:${url}`;
     if (cache.has(cacheKey)) {
@@ -197,11 +205,12 @@ async function searchJSearch(query, start, limit, filters) {
 
         console.log('JSearch raw jobs:', jobs.length);
 
-        // Нормалізація локацій
+        // Нормалізація локацій та визначення isRemote
         jobs = jobs.map(job => {
             const locationStr = job.job_city ? `${job.job_city}, ${job.job_country}` : job.job_country || 'Unknown';
             const { location, country } = normalizeLocation(locationStr, job.job_country);
-            return { ...job, normalizedLocation: location, normalizedCountry: country };
+            const isRemote = job.job_is_remote || filters.remote === true;
+            return { ...job, normalizedLocation: location, normalizedCountry: country, isRemote };
         });
 
         // Фільтрація за локацією
@@ -235,7 +244,8 @@ async function searchJSearch(query, start, limit, filters) {
                 DatePosted: job.job_posted_at_datetime_utc,
                 Source: 'JSearch',
                 Category: job.job_employment_type || job.job_title || 'Unknown',
-                JobUrl: job.job_apply_link || 'Not available'
+                JobUrl: job.job_apply_link || 'Not available',
+                isRemote: job.isRemote || false
             };
         });
 
@@ -286,11 +296,12 @@ async function searchJobicy(query, start, limit, filters) {
 
         console.log('Jobicy raw jobs:', items.length);
 
-        // Нормалізація локацій
+        // Нормалізація локацій та визначення isRemote
         items = items.map(item => {
             const locationStr = item['job:location']?.[0] || 'Remote';
             const { location, country } = normalizeLocation(locationStr, null);
-            return { ...item, normalizedLocation: location, normalizedCountry: country };
+            const isRemote = locationStr.toLowerCase().includes('remote') || true; // Jobicy — усі вакансії віддалені
+            return { ...item, normalizedLocation: location, normalizedCountry: country, isRemote };
         });
 
         // Фільтрація за локацією
@@ -311,6 +322,11 @@ async function searchJobicy(query, start, limit, filters) {
             items = items.filter(item => item.category?.[0]?.toLowerCase().includes(expectedCategory));
         }
 
+        // Фільтрація за remote (тільки якщо remote === false, оскільки Jobicy — усі віддалені)
+        if (filters.remote === false) {
+            items = items.filter(item => !item.isRemote);
+        }
+
         const mappedJobs = items.map(item => {
             const salaryInfo = normalizeSalary('Not specified'); // Jobicy не надає зарплату
             return {
@@ -325,7 +341,8 @@ async function searchJobicy(query, start, limit, filters) {
                 DatePosted: item.pubDate?.[0] || 'Unknown',
                 Source: 'Jobicy',
                 Category: item.category?.[0] || 'Unknown',
-                JobUrl: item.link?.[0] || 'Not available'
+                JobUrl: item.link?.[0] || 'Not available',
+                isRemote: item.isRemote || false
             };
         });
 
@@ -349,6 +366,9 @@ async function searchArbeitnow(query, start, limit, filters) {
         const arbeitnowLocation = locationMap[filters.location]?.arbeitnow || filters.location;
         url += `&location=${encodeURIComponent(arbeitnowLocation)}`;
     }
+    if (filters.remote !== undefined) {
+        url += `&remote=${filters.remote}`; // Arbeitnow: true для віддаленої, false для невіддаленої
+    }
 
     const cacheKey = `arbeitnow:${url}`;
     if (cache.has(cacheKey)) {
@@ -364,10 +384,11 @@ async function searchArbeitnow(query, start, limit, filters) {
 
         console.log('Arbeitnow raw jobs:', jobs.length);
 
-        // Нормалізація локацій
+        // Нормалізація локацій та визначення isRemote
         jobs = jobs.map(job => {
             const { location, country } = normalizeLocation(job.location, null);
-            return { ...job, normalizedLocation: location, normalizedCountry: country };
+            const isRemote = job.remote || filters.remote === true;
+            return { ...job, normalizedLocation: location, normalizedCountry: country, isRemote };
         });
 
         // Фільтрація за категорією
@@ -400,7 +421,8 @@ async function searchArbeitnow(query, start, limit, filters) {
                 DatePosted: new Date(job.created_at * 1000).toISOString(),
                 Source: 'Arbeitnow',
                 Category: job.tags[0] || 'Unknown',
-                JobUrl: job.url || 'Not available'
+                JobUrl: job.url || 'Not available',
+                isRemote: job.isRemote || false
             };
         });
 
@@ -443,6 +465,9 @@ async function searchFindWork(query, start, limit, filters) {
         const findWorkLocation = locationMap[filters.location]?.findwork || locationMap[filters.location]?.fullName || filters.location;
         url += `&location=${encodeURIComponent(findWorkLocation)}`;
     }
+    if (filters.remote !== undefined) {
+        url += `&remote=${filters.remote}`; // FindWork: true для віддаленої, false для невіддаленої
+    }
 
     const cacheKey = `findwork:${url}`;
     if (cache.has(cacheKey)) {
@@ -462,11 +487,12 @@ async function searchFindWork(query, start, limit, filters) {
 
         console.log('FindWork raw jobs:', jobs.length);
 
-        // Нормалізація локацій
+        // Нормалізація локацій та визначення isRemote
         jobs = jobs.map(job => {
             const locationStr = job.location || (job.remote ? 'Remote' : 'Unknown');
             const { location, country } = normalizeLocation(locationStr, null);
-            return { ...job, normalizedLocation: location, normalizedCountry: country };
+            const isRemote = job.remote || filters.remote === true;
+            return { ...job, normalizedLocation: location, normalizedCountry: country, isRemote };
         });
 
         // Фільтрація за локацією
@@ -494,7 +520,8 @@ async function searchFindWork(query, start, limit, filters) {
                 DatePosted: job.date_posted,
                 Source: 'FindWork',
                 Category: job.category || 'Unknown',
-                JobUrl: job.url || 'Not available'
+                JobUrl: job.url || 'Not available',
+                isRemote: job.isRemote || false
             };
         });
 
@@ -515,7 +542,7 @@ async function searchJobs(query, start, limit, filters) {
     const allSources = ['Adzuna', 'JSearch', 'Jobicy', 'Arbeitnow', 'FindWork'];
     const selectedSources = sources && !sources.includes('All') ? sources : allSources;
 
-    const { salaryMin, salaryMax } = filters;
+    const { salaryMin, salaryMax, remote } = filters;
 
     console.log('Sources parsed:', sources);
     console.log('Selected sources:', selectedSources);
@@ -613,6 +640,13 @@ async function searchJobs(query, start, limit, filters) {
         });
     }
 
+    // Фільтрація за remote (додаткова перевірка на рівні результатів)
+    if (remote === true) {
+        finalJobs = finalJobs.filter(job => job.isRemote);
+    } else if (remote === false) {
+        finalJobs = finalJobs.filter(job => !job.isRemote);
+    }
+
     finalJobs = finalJobs.slice(0, limit);
     console.log('Final jobs returned:', finalJobs.length);
     console.log('Sources in final jobs:', [...new Set(finalJobs.map(job => job.Source))]);
@@ -627,7 +661,8 @@ async function getRecommendations(userProfile, start, limit, salaryMin, salaryMa
         location: userProfile.location,
         source: 'All',
         salaryMin,
-        salaryMax
+        salaryMax,
+        remote: undefined // Рекомендації не фільтрують за remote за замовчуванням
     };
     const recommendedJobs = await searchJobs(query, start, limit, filters);
 
