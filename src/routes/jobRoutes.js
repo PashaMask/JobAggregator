@@ -15,7 +15,8 @@ router.get('/search', async (req, res) => {
             location: req.query.location || undefined,
             source: req.query.source || undefined,
             salaryMin,
-            salaryMax
+            salaryMax,
+            remote: req.query.remote ? req.query.remote === 'true' : undefined,
         };
 
         console.log('Request query in jobRoutes /search:', req.query);
