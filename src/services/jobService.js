@@ -1,6 +1,7 @@
 const axios = require('axios');
 const xml2js = require('xml2js');
 const cities = require('cities.json');
+const stripHtml = require('strip-html');
 
 // Зіставлення кодів країн із повними назвами для різних API
 const locationMap = {
@@ -383,7 +384,7 @@ async function searchArbeitnow(query, start, limit, filters) {
         url += `&location=${encodeURIComponent(arbeitnowLocation)}`;
     }
     if (filters.remote !== undefined) {
-        url += `&remote=${filters.remote}`; // Arbeitnow: true для віддаленої, false для невіддаленої
+        url += `&remote=${filters.remote}`;
     }
 
     const cacheKey = `arbeitnow:${url}`;
@@ -425,13 +426,15 @@ async function searchArbeitnow(query, start, limit, filters) {
 
         const mappedJobs = jobs.map(job => {
             const salaryInfo = normalizeSalary('Not specified'); // Arbeitnow не надає зарплату
+            const { result } = stripHtml(job.description || ''); // Очищаємо HTML-теги
+            const cleanDescription = result.trim(); // Отримуємо чистий текст
             return {
                 Id: job.slug,
                 Title: job.title,
                 Company: job.company_name,
                 Location: job.normalizedLocation,
                 Country: job.normalizedCountry,
-                Description: job.description,
+                Description: cleanDescription || 'No description', // Використовуємо очищений опис
                 Salary: salaryInfo.display,
                 SalaryValue: salaryInfo.value,
                 DatePosted: new Date(job.created_at * 1000).toISOString(),
@@ -502,7 +505,6 @@ async function searchFindWork(query, start, limit, filters) {
         let jobs = response.data.results || [];
 
         console.log('FindWork raw jobs:', jobs.length);
-        // Додаємо логування сирих даних для перших кількох вакансій
         if (jobs.length > 0) {
             console.log('Sample FindWork job data:', JSON.stringify(jobs.slice(0, 2), null, 2));
         }
@@ -528,14 +530,16 @@ async function searchFindWork(query, start, limit, filters) {
 
         const mappedJobs = jobs.map(job => {
             const salaryInfo = normalizeSalary(job.salary || 'Not specified');
-            const description = job.description || job.text || 'No description'; // Перевіряємо альтернативне поле text
+            const descriptionSource = job.description || job.text || 'No description';
+            const { result } = stripHtml(descriptionSource); // Очищаємо HTML-теги
+            const cleanDescription = result.trim();
             return {
                 Id: job.id.toString(),
                 Title: job.role,
                 Company: job.company_name,
                 Location: job.normalizedLocation,
                 Country: job.normalizedCountry,
-                Description: description,
+                Description: cleanDescription || 'No description', // Використовуємо очищений опис
                 Salary: salaryInfo.display,
                 SalaryValue: salaryInfo.value,
                 DatePosted: job.date_posted,
