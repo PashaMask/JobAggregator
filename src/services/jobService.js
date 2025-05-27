@@ -482,7 +482,7 @@ async function searchFindWork(query, start, limit, filters) {
         url += `&location=${encodeURIComponent(findWorkLocation)}`;
     }
     if (filters.remote !== undefined) {
-        url += `&remote=${filters.remote}`; // FindWork: true для віддаленої, false для невіддаленої
+        url += `&remote=${filters.remote}`;
     }
 
     const cacheKey = `findwork:${url}`;
@@ -502,6 +502,10 @@ async function searchFindWork(query, start, limit, filters) {
         let jobs = response.data.results || [];
 
         console.log('FindWork raw jobs:', jobs.length);
+        // Додаємо логування сирих даних для перших кількох вакансій
+        if (jobs.length > 0) {
+            console.log('Sample FindWork job data:', JSON.stringify(jobs.slice(0, 2), null, 2));
+        }
 
         // Нормалізація локацій та визначення isRemote
         jobs = jobs.map(job => {
@@ -524,13 +528,14 @@ async function searchFindWork(query, start, limit, filters) {
 
         const mappedJobs = jobs.map(job => {
             const salaryInfo = normalizeSalary(job.salary || 'Not specified');
+            const description = job.description || job.text || 'No description'; // Перевіряємо альтернативне поле text
             return {
                 Id: job.id.toString(),
                 Title: job.role,
                 Company: job.company_name,
                 Location: job.normalizedLocation,
                 Country: job.normalizedCountry,
-                Description: job.description || 'No description',
+                Description: description,
                 Salary: salaryInfo.display,
                 SalaryValue: salaryInfo.value,
                 DatePosted: job.date_posted,
