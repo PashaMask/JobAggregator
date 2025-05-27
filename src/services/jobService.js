@@ -373,106 +373,86 @@ async function searchJobicy(query, start, limit, filters) {
 }
 
 // Функція для пошуку вакансій через Arbeitnow
-async function searchFindWork(query, start, limit, filters) {
-    console.log('Calling searchFindWork with query:', query);
-    console.log('FindWork filters:', filters);
-    const apiKey = process.env.FINDWORK_API_KEY;
-    if (!apiKey) {
-        throw new Error('FindWork API key is missing');
-    }
+const stripHtml = require('strip-html');
 
+async function searchArbeitnow(query, start, limit, filters) {
+    console.log('Calling searchArbeitnow with query:', query);
+    console.log('Arbeitnow filters:', filters);
     const page = Math.floor(start / limit) + 1;
-    let url = `https://findwork.dev/api/jobs/?page=${page}`;
-
-    let searchQuery = query || '';
-    if (filters.category) {
-        const categoryMap = {
-            'it': 'developer',
-            'education': 'education',
-            'healthcare': 'healthcare',
-            'finance': 'finance',
-            'other': ''
-        };
-        const findWorkCategory = categoryMap[filters.category.toLowerCase()] || '';
-        searchQuery = searchQuery ? `${searchQuery} ${findWorkCategory}` : findWorkCategory;
-    }
-    if (searchQuery) url += `&search=${encodeURIComponent(searchQuery.trim())}&sort_by=relevance`;
-
+    let url = `https://arbeitnow.com/api/job-board-api?page=${page}&per_page=${limit}`;
+    if (query) url += `&search=${encodeURIComponent(query)}`;
     if (filters.location) {
-        const findWorkLocation = locationMap[filters.location]?.findwork || locationMap[filters.location]?.fullName || filters.location;
-        url += `&location=${encodeURIComponent(findWorkLocation)}`;
+        const arbeitnowLocation = locationMap[filters.location]?.arbeitnow || filters.location;
+        url += `&location=${encodeURIComponent(arbeitnowLocation)}`;
     }
     if (filters.remote !== undefined) {
         url += `&remote=${filters.remote}`;
     }
 
-    const cacheKey = `findwork:${url}`;
+    const cacheKey = `arbeitnow:${url}`;
     if (cache.has(cacheKey)) {
-        console.log('Returning cached FindWork jobs');
+        console.log('Returning cached Arbeitnow jobs');
         return cache.get(cacheKey);
     }
 
-    console.log('FindWork URL:', url);
+    console.log('Arbeitnow URL:', url);
 
     try {
-        const response = await axios.get(url, {
-            headers: {
-                'Authorization': `Token ${apiKey}`
-            }
-        });
-        let jobs = response.data.results || [];
+        const response = await axios.get(url);
+        let jobs = response.data.data || [];
 
-        console.log('FindWork raw jobs:', jobs.length);
-        if (jobs.length > 0) {
-            console.log('Sample FindWork job data:', JSON.stringify(jobs.slice(0, 2), null, 2));
-        }
+        console.log('Arbeitnow raw jobs:', jobs.length);
 
         // Нормалізація локацій та визначення isRemote
         jobs = jobs.map(job => {
-            const locationStr = job.location || (job.remote ? 'Remote' : 'Unknown');
-            const { location, country } = normalizeLocation(locationStr, null);
+            const { location, country } = normalizeLocation(job.location, null);
             const isRemote = job.remote || filters.remote === true;
             return { ...job, normalizedLocation: location, normalizedCountry: country, isRemote };
         });
 
+        // Фільтрація за категорією
+        if (filters.category) {
+            jobs = jobs.filter(job => job.tags.some(tag => tag.toLowerCase().includes(filters.category.toLowerCase())));
+        }
+
         // Фільтрація за локацією
         if (filters.location) {
-            const expectedLocation = locationMap[filters.location]?.fullName?.toLowerCase();
-            const expectedFindWorkCode = locationMap[filters.location]?.findwork?.toLowerCase();
+            const expectedLocation = locationMap[filters.location]?.arbeitnow?.toLowerCase();
+            const expectedCountryName = locationMap[filters.location]?.fullName?.toLowerCase();
             jobs = jobs.filter(job => {
                 const location = job.normalizedLocation?.toLowerCase() || '';
                 const country = job.normalizedCountry?.toLowerCase() || '';
-                return country === expectedLocation || location.includes(expectedFindWorkCode) || (job.remote && location === 'remote');
+                return country === expectedCountryName || location.includes(expectedLocation);
             });
         }
 
         const mappedJobs = jobs.map(job => {
-            const salaryInfo = normalizeSalary(job.salary || 'Not specified');
-            const descriptionSource = job.description || job.text || '';
+            const salaryInfo = normalizeSalary('Not specified'); // Arbeitnow не надає зарплату
+            const descriptionSource = job.description || '';
             const { result } = stripHtml(descriptionSource) || { result: '' }; // Безпечний доступ
             const cleanDescription = result ? result.trim() : 'No description';
             return {
-                Id: job.id.toString(),
-                Title: job.role,
+                Id: job.slug,
+                Title: job.title,
                 Company: job.company_name,
                 Location: job.normalizedLocation,
                 Country: job.normalizedCountry,
                 Description: cleanDescription,
                 Salary: salaryInfo.display,
                 SalaryValue: salaryInfo.value,
-                DatePosted: job.date_posted,
-                Source: 'FindWork',
-                Category: job.category || 'Unknown',
+                DatePosted: new Date(job.created_at * 1000).toISOString(),
+                Source: 'Arbeitnow',
+                Category: job.tags[0] || 'Unknown',
                 JobUrl: job.url || 'Not available',
                 isRemote: job.isRemote || false
             };
         });
 
-        console.log('FindWork returned jobs:', mappedJobs.length);
+        console.log('Arbeitnow returned jobs:', mappedJobs.length);
         cache.set(cacheKey, mappedJobs);
         return mappedJobs;
     } catch (error) {
-        console.error('FindWork error:', error.message);
+        console.error('Arbeitnow error:', error.message);
         return [];
     }
 }
