@@ -373,8 +373,6 @@ async function searchJobicy(query, start, limit, filters) {
 }
 
 // Функція для пошуку вакансій через Arbeitnow
-const stripHtml = require('strip-html');
-
 async function searchFindWork(query, start, limit, filters) {
     console.log('Calling searchFindWork with query:', query);
     console.log('FindWork filters:', filters);
