@@ -387,11 +387,13 @@ async function searchArbeitnow(query, start, limit, filters) {
         url += `&remote=${filters.remote}`;
     }
 
-    //const cacheKey = `arbeitnow:${url}`;
-    //if (cache.has(cacheKey)) {
-    //    console.log('Returning cached Arbeitnow jobs');
-    //    return cache.get(cacheKey);
-    //}
+    const cacheKey = `arbeitnow:${url}`;
+    // Тимчасово відключимо кеш для тестування
+    cache.clear(); // Очищаємо кеш перед запитом
+    // if (cache.has(cacheKey)) {
+    //     console.log('Returning cached Arbeitnow jobs');
+    //     return cache.get(cacheKey);
+    // }
 
     console.log('Arbeitnow URL:', url);
 
@@ -426,9 +428,11 @@ async function searchArbeitnow(query, start, limit, filters) {
 
         const mappedJobs = jobs.map(job => {
             const salaryInfo = normalizeSalary('Not specified'); // Arbeitnow не надає зарплату
-            const descriptionSource = job.description || 'No description';
-            const stripResult = stripHtml(descriptionSource) || { result: 'No description' }; // Безпечний доступ
-            const cleanDescription = stripResult.result ? stripResult.result.trim() : 'No description';
+            const descriptionSource = job.description || '';
+            console.log('Arbeitnow job description:', job.description);
+            const stripResult = stripHtml(descriptionSource) || { result: '' };
+            console.log('Arbeitnow stripped description:', stripResult.result); // Додаємо логування після stripHtml
+            const cleanDescription = stripResult.result ? stripResult.result.trim() : (descriptionSource || 'No description');
             return {
                 Id: job.slug,
                 Title: job.title,
@@ -489,11 +493,13 @@ async function searchFindWork(query, start, limit, filters) {
         url += `&remote=${filters.remote}`;
     }
 
-    //const cacheKey = `findwork:${url}`;
-    //if (cache.has(cacheKey)) {
-    //    console.log('Returning cached FindWork jobs');
-    //    return cache.get(cacheKey);
-    //}
+    const cacheKey = `findwork:${url}`;
+    // Тимчасово відключимо кеш для тестування
+    cache.clear(); // Очищаємо кеш перед запитом
+    // if (cache.has(cacheKey)) {
+    //     console.log('Returning cached FindWork jobs');
+    //     return cache.get(cacheKey);
+    // }
 
     console.log('FindWork URL:', url);
 
@@ -531,9 +537,11 @@ async function searchFindWork(query, start, limit, filters) {
 
         const mappedJobs = jobs.map(job => {
             const salaryInfo = normalizeSalary(job.salary || 'Not specified');
-            const descriptionSource = job.description || job.text || 'No description';
-            const stripResult = stripHtml(descriptionSource) || { result: 'No description' }; // Безпечний доступ
-            const cleanDescription = stripResult.result ? stripResult.result.trim() : 'No description';
+            const descriptionSource = job.description || job.text || '';
+            console.log('FindWork job description/text:', { description: job.description, text: job.text });
+            const stripResult = stripHtml(descriptionSource) || { result: '' };
+            console.log('FindWork stripped description:', stripResult.result); // Додаємо логування після stripHtml
+            const cleanDescription = stripResult.result ? stripResult.result.trim() : (descriptionSource || 'No description');
             return {
                 Id: job.id.toString(),
                 Title: job.role,
