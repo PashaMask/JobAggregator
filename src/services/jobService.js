@@ -425,14 +425,13 @@ async function searchArbeitnow(query, start, limit, filters) {
             });
         }
 
-        const mappedJobs = jobs.map(job => {
-            const salaryInfo = normalizeSalary('Not specified'); // Arbeitnow не надає зарплату
+        let mappedJobs = jobs.map(job => {
+            const salaryInfo = normalizeSalary('Not specified');
             const descriptionSource = job.description || '';
             console.log('Arbeitnow job description:', job.description);
-            // Використовуємо регулярний вираз для видалення HTML-тегів
             const cleanDescription = descriptionSource
-                .replace(/<[^>]+>/g, '') // Видаляємо HTML-теги
-                .replace(/<!--[\s\S]*?-->/g, '') // Видаляємо HTML-коментарі
+                .replace(/<[^>]+>/g, '')
+                .replace(/<!--[\s\S]*?-->/g, '')
                 .trim() || 'No description';
             console.log('Arbeitnow cleaned description:', cleanDescription);
             return {
@@ -451,6 +450,22 @@ async function searchArbeitnow(query, start, limit, filters) {
                 isRemote: job.isRemote || false
             };
         });
+
+        // Локальна фільтрація за запитом
+        if (query) {
+            const queryWords = query.toLowerCase().split(/\s+/); // Розділяємо запит на слова
+            mappedJobs = mappedJobs.filter(job => {
+                const title = job.Title?.toLowerCase() || '';
+                const category = job.Category?.toLowerCase() || '';
+                const matchesQuery = queryWords.some(word =>
+                    title.includes(word) || category.includes(word)
+                );
+                if (!matchesQuery) {
+                    console.log(`Arbeitnow job filtered out: ${job.Title} (Category: ${job.Category})`);
+                }
+                return matchesQuery;
+            });
+        }
 
         console.log('Arbeitnow returned jobs:', mappedJobs.length);
         cache.set(cacheKey, mappedJobs);
@@ -536,14 +551,13 @@ async function searchFindWork(query, start, limit, filters) {
             });
         }
 
-        const mappedJobs = jobs.map(job => {
+        let mappedJobs = jobs.map(job => {
             const salaryInfo = normalizeSalary(job.salary || 'Not specified');
             const descriptionSource = job.description || job.text || '';
             console.log('FindWork job description/text:', { description: job.description, text: job.text });
-            // Використовуємо регулярний вираз для видалення HTML-тегів
             const cleanDescription = descriptionSource
-                .replace(/<[^>]+>/g, '') // Видаляємо HTML-теги
-                .replace(/<!--[\s\S]*?-->/g, '') // Видаляємо HTML-коментарі
+                .replace(/<[^>]+>/g, '')
+                .replace(/<!--[\s\S]*?-->/g, '')
                 .trim() || 'No description';
             console.log('FindWork cleaned description:', cleanDescription);
             return {
@@ -562,6 +576,22 @@ async function searchFindWork(query, start, limit, filters) {
                 isRemote: job.isRemote || false
             };
         });
+
+        // Локальна фільтрація за запитом
+        if (query) {
+            const queryWords = query.toLowerCase().split(/\s+/); // Розділяємо запит на слова
+            mappedJobs = mappedJobs.filter(job => {
+                const title = job.Title?.toLowerCase() || '';
+                const category = job.Category?.toLowerCase() || '';
+                const matchesQuery = queryWords.some(word =>
+                    title.includes(word) || category.includes(word)
+                );
+                if (!matchesQuery) {
+                    console.log(`FindWork job filtered out: ${job.Title} (Category: ${job.Category})`);
+                }
+                return matchesQuery;
+            });
+        }
 
         console.log('FindWork returned jobs:', mappedJobs.length);
         cache.set(cacheKey, mappedJobs);
