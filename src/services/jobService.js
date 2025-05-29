@@ -426,9 +426,9 @@ async function searchArbeitnow(query, start, limit, filters) {
 
         const mappedJobs = jobs.map(job => {
             const salaryInfo = normalizeSalary('Not specified'); // Arbeitnow не надає зарплату
-            const descriptionSource = job.description || '';
-            const { result } = stripHtml(descriptionSource) || { result: '' }; // Безпечний доступ
-            const cleanDescription = result ? result.trim() : 'No description';
+            const descriptionSource = job.description || 'No description';
+            const stripResult = stripHtml(descriptionSource) || { result: 'No description' }; // Безпечний доступ
+            const cleanDescription = stripResult.result ? stripResult.result.trim() : 'No description';
             return {
                 Id: job.slug,
                 Title: job.title,
@@ -532,15 +532,15 @@ async function searchFindWork(query, start, limit, filters) {
         const mappedJobs = jobs.map(job => {
             const salaryInfo = normalizeSalary(job.salary || 'Not specified');
             const descriptionSource = job.description || job.text || 'No description';
-            const { result } = stripHtml(descriptionSource); // Очищаємо HTML-теги
-            const cleanDescription = result.trim();
+            const stripResult = stripHtml(descriptionSource) || { result: 'No description' }; // Безпечний доступ
+            const cleanDescription = stripResult.result ? stripResult.result.trim() : 'No description';
             return {
                 Id: job.id.toString(),
                 Title: job.role,
                 Company: job.company_name,
                 Location: job.normalizedLocation,
                 Country: job.normalizedCountry,
-                Description: cleanDescription || 'No description', // Використовуємо очищений опис
+                Description: cleanDescription,
                 Salary: salaryInfo.display,
                 SalaryValue: salaryInfo.value,
                 DatePosted: job.date_posted,
