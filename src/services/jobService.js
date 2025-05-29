@@ -387,11 +387,11 @@ async function searchArbeitnow(query, start, limit, filters) {
         url += `&remote=${filters.remote}`;
     }
 
-    const cacheKey = `arbeitnow:${url}`;
-    if (cache.has(cacheKey)) {
-        console.log('Returning cached Arbeitnow jobs');
-        return cache.get(cacheKey);
-    }
+    //const cacheKey = `arbeitnow:${url}`;
+    //if (cache.has(cacheKey)) {
+    //    console.log('Returning cached Arbeitnow jobs');
+    //    return cache.get(cacheKey);
+    //}
 
     console.log('Arbeitnow URL:', url);
 
@@ -489,11 +489,11 @@ async function searchFindWork(query, start, limit, filters) {
         url += `&remote=${filters.remote}`;
     }
 
-    const cacheKey = `findwork:${url}`;
-    if (cache.has(cacheKey)) {
-        console.log('Returning cached FindWork jobs');
-        return cache.get(cacheKey);
-    }
+    //const cacheKey = `findwork:${url}`;
+    //if (cache.has(cacheKey)) {
+    //    console.log('Returning cached FindWork jobs');
+    //    return cache.get(cacheKey);
+    //}
 
     console.log('FindWork URL:', url);
 
