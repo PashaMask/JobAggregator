@@ -429,10 +429,11 @@ async function searchArbeitnow(query, start, limit, filters) {
             const salaryInfo = normalizeSalary('Not specified'); // Arbeitnow не надає зарплату
             const descriptionSource = job.description || '';
             console.log('Arbeitnow job description:', job.description);
-            const stripResult = stripHtml(descriptionSource) || { result: '' };
-            console.log('Arbeitnow stripped description (before cleanup):', stripResult.result);
-            // Додаткове очищення за допомогою регулярного виразу
-            const cleanDescription = stripResult.result.replace(/<[^>]+>/g, '').trim() || (descriptionSource || 'No description');
+            // Використовуємо регулярний вираз для видалення HTML-тегів
+            const cleanDescription = descriptionSource
+                .replace(/<[^>]+>/g, '') // Видаляємо HTML-теги
+                .replace(/<!--[\s\S]*?-->/g, '') // Видаляємо HTML-коментарі
+                .trim() || 'No description';
             console.log('Arbeitnow cleaned description:', cleanDescription);
             return {
                 Id: job.slug,
@@ -539,10 +540,11 @@ async function searchFindWork(query, start, limit, filters) {
             const salaryInfo = normalizeSalary(job.salary || 'Not specified');
             const descriptionSource = job.description || job.text || '';
             console.log('FindWork job description/text:', { description: job.description, text: job.text });
-            const stripResult = stripHtml(descriptionSource) || { result: '' };
-            console.log('FindWork stripped description (before cleanup):', stripResult.result);
-            // Додаткове очищення за допомогою регулярного виразу
-            const cleanDescription = stripResult.result.replace(/<[^>]+>/g, '').trim() || (descriptionSource || 'No description');
+            // Використовуємо регулярний вираз для видалення HTML-тегів
+            const cleanDescription = descriptionSource
+                .replace(/<[^>]+>/g, '') // Видаляємо HTML-теги
+                .replace(/<!--[\s\S]*?-->/g, '') // Видаляємо HTML-коментарі
+                .trim() || 'No description';
             console.log('FindWork cleaned description:', cleanDescription);
             return {
                 Id: job.id.toString(),
