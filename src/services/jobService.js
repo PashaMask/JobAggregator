@@ -388,8 +388,7 @@ async function searchArbeitnow(query, start, limit, filters) {
     }
 
     const cacheKey = `arbeitnow:${url}`;
-    // Тимчасово відключимо кеш для тестування
-    cache.clear(); // Очищаємо кеш перед запитом
+    cache.clear(); // Очищаємо кеш для тестування
     // if (cache.has(cacheKey)) {
     //     console.log('Returning cached Arbeitnow jobs');
     //     return cache.get(cacheKey);
@@ -431,8 +430,10 @@ async function searchArbeitnow(query, start, limit, filters) {
             const descriptionSource = job.description || '';
             console.log('Arbeitnow job description:', job.description);
             const stripResult = stripHtml(descriptionSource) || { result: '' };
-            console.log('Arbeitnow stripped description:', stripResult.result); // Додаємо логування після stripHtml
-            const cleanDescription = stripResult.result ? stripResult.result.trim() : (descriptionSource || 'No description');
+            console.log('Arbeitnow stripped description (before cleanup):', stripResult.result);
+            // Додаткове очищення за допомогою регулярного виразу
+            const cleanDescription = stripResult.result.replace(/<[^>]+>/g, '').trim() || (descriptionSource || 'No description');
+            console.log('Arbeitnow cleaned description:', cleanDescription);
             return {
                 Id: job.slug,
                 Title: job.title,
@@ -494,8 +495,7 @@ async function searchFindWork(query, start, limit, filters) {
     }
 
     const cacheKey = `findwork:${url}`;
-    // Тимчасово відключимо кеш для тестування
-    cache.clear(); // Очищаємо кеш перед запитом
+    cache.clear(); // Очищаємо кеш для тестування
     // if (cache.has(cacheKey)) {
     //     console.log('Returning cached FindWork jobs');
     //     return cache.get(cacheKey);
@@ -540,8 +540,10 @@ async function searchFindWork(query, start, limit, filters) {
             const descriptionSource = job.description || job.text || '';
             console.log('FindWork job description/text:', { description: job.description, text: job.text });
             const stripResult = stripHtml(descriptionSource) || { result: '' };
-            console.log('FindWork stripped description:', stripResult.result); // Додаємо логування після stripHtml
-            const cleanDescription = stripResult.result ? stripResult.result.trim() : (descriptionSource || 'No description');
+            console.log('FindWork stripped description (before cleanup):', stripResult.result);
+            // Додаткове очищення за допомогою регулярного виразу
+            const cleanDescription = stripResult.result.replace(/<[^>]+>/g, '').trim() || (descriptionSource || 'No description');
+            console.log('FindWork cleaned description:', cleanDescription);
             return {
                 Id: job.id.toString(),
                 Title: job.role,
